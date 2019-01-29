@@ -45,8 +45,8 @@ class Notification < ApplicationRecord
     handle_asynchronously :send_to_followers
 
     def send_new_comment_notifications(notifiable)
-      user_ids = notifiable.ancestors.map(&:user_id).to_set
-      user_ids.add(notifiable.commentable.user.id) if user_ids.empty?
+      user_ids = notifiable.ancestors.select(:receive_notifications, :user_id).select(&:receive_notifications).pluck(:user_id).to_set
+      user_ids.add(notifiable.commentable.user_id) if user_ids.empty? && notifiable.commentable.receive_notifications
       user_ids.delete(notifiable.user_id).each do |user_id|
         json_data = {
           user: user_data(notifiable.user),
@@ -93,6 +93,8 @@ class Notification < ApplicationRecord
     def send_reaction_notification(notifiable)
       return if notifiable.user_id == notifiable.reactable.user_id
       return if notifiable.points.negative?
+      return unless notifiable.reactable.receive_notifications
+
       aggregated_reaction_siblings = notifiable.reactable.reactions.
         reject { |r| r.user_id == notifiable.reactable.user_id }.
         map { |r| { category: r.category, created_at: r.created_at, user: user_data(r.user) } }
@@ -150,7 +152,8 @@ class Notification < ApplicationRecord
     def send_welcome_notification(receiver_id)
       welcome_broadcast = Broadcast.find_by(title: "Welcome Notification")
       return if welcome_broadcast == nil
-      dev_account = User.find_by_id(ENV["DEVTO_USER_ID"])
+
+      dev_account = User.dev_account
       json_data = {
         user: user_data(dev_account),
         broadcast: {
@@ -170,8 +173,9 @@ class Notification < ApplicationRecord
     def send_moderation_notification(notifiable)
       available_moderators = User.with_role(:trusted).where("last_moderation_notification < ?", 28.hours.ago)
       return if available_moderators.empty?
+
       moderator = available_moderators.sample
-      dev_account = User.find_by_id(ENV["DEVTO_USER_ID"])
+      dev_account = User.dev_account
       json_data = {
         user: user_data(dev_account)
       }
@@ -190,7 +194,7 @@ class Notification < ApplicationRecord
     def send_tag_adjustment_notification(notifiable)
       article = notifiable.article
       json_data = {
-        article: {title: article.title, path: article.path},
+        article: { title: article.title, path: article.path },
         adjustment_type: notifiable.adjustment_type,
         status: notifiable.status,
         reason_for_adjustment: notifiable.reason_for_adjustment,
@@ -205,7 +209,6 @@ class Notification < ApplicationRecord
       article.user.update_column(:last_moderation_notification, Time.current)
     end
     handle_asynchronously :send_tag_adjustment_notification
-
 
     def remove_all(notifiable_hash)
       Notification.where(
@@ -235,6 +238,7 @@ class Notification < ApplicationRecord
         action: action,
       )
       return if notifications.blank?
+
       new_json_data = notifications.first.json_data
       new_json_data[notifiable.class.name.downcase] = send("#{notifiable.class.name.downcase}_data", notifiable)
       notifications.update_all(json_data: new_json_data)
@@ -287,6 +291,7 @@ class Notification < ApplicationRecord
 
     def send_push_notifications(user_id, title, body, path)
       return unless ApplicationConfig["PUSHER_BEAMS_KEY"] && ApplicationConfig["PUSHER_BEAMS_KEY"].size == 64
+
       payload = {
         apns: {
           aps: {

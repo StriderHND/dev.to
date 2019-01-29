@@ -80,6 +80,7 @@
     margin-bottom: 28px;
     background: $dark-gray;
     box-shadow: $bold-shadow;
+    box-shadow: var(--theme-container-box-shadow, $bold-shadow);
     padding: 15px 0px;
   }
   .dashboard-analytics-header{
@@ -132,6 +133,7 @@
   .single-article{
     border: 1px solid $light-medium-gray;
     box-shadow: $bold-shadow;
+    box-shadow: var(--theme-container-box-shadow, $bold-shadow);
     padding:5px 15px;
     margin-bottom:13px;
     border-radius:3px;
@@ -217,6 +219,15 @@
     }
     .dashboard-actions{
       padding: 7px 0px 10px;
+      .mute-form {
+        margin: 0;
+        padding: 0;
+        display: inline;
+          input[type="submit"] {
+            height: 30.4px;
+            border: 2px solid transparent;
+          }
+        }
     }
     .pill{
       background:$bold-blue;
@@ -242,6 +253,15 @@
       }
       &.black{
         background: $dark-gray;
+      }
+      &.mute{
+        background-color: #EE7453;
+        color: $white;
+      }
+      &.unmute{
+        // inverted background color
+        background-color: $blue;
+        color: $white;
       }
     }
     .dashboard-pageviews-indicator{

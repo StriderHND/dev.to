@@ -33,7 +33,6 @@ class FollowsController < ApplicationController
                 Notification.send_new_follower_notification(follow)
                 "followed"
               end
-    current_user.save
     current_user.touch
     render json: { outcome: @result }
   end
@@ -45,7 +44,7 @@ class FollowsController < ApplicationController
       redirect_to "/dashboard/following"
     end
   end
-  
+
   private
 
   def follow_params

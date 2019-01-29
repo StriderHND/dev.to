@@ -11,7 +11,7 @@
 <br/>
 <p align="center">
   <a href="https://www.ruby-lang.org/en/">
-    <img src="https://img.shields.io/badge/Ruby-v2.5.3-green.svg" alt="ruby version"/>
+    <img src="https://img.shields.io/badge/Ruby-v2.6.0-green.svg" alt="ruby version"/>
   </a>
   <a href="http://rubyonrails.org/">
     <img src="https://img.shields.io/badge/Rails-v5.1.6-brightgreen.svg" alt="rails version"/>
@@ -49,7 +49,8 @@ Welcome to the [dev.to](https://dev.to) codebase. We are so excited to have you.
     - [Husky hooks](#husky-hooks)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
+  - [Standard Installation](#standard-installation)
+  - [Docker Installation (BETA)](#docker-installation-beta)
   - [Starting the application](#starting-the-application)
   - [Suggested Workflow](#suggested-workflow)
 - [Additional docs](#additional-docs)
@@ -82,6 +83,8 @@ When in doubt, ask a [core team member](#core-team)! You can mention us in any i
 3.  Code and commit your changes. Bonus points if you write a [good commit message](https://chris.beams.io/posts/git-commit/): `git commit -m 'Add some feature'`
 4.  Push to the branch: `git push origin feature/that-new-feature`
 5.  [Create a pull request](#create-a-pull-request) for your branch 🎉
+
+Note: be sure to [maintain your fork](https://docs.dev.to/maintaining-your-fork)!
 
 ## Contribution guideline
 
@@ -182,6 +185,7 @@ Our docker implementation is incomplete and may not work smoothly. Please kindly
 1. Set environment variables above as described in the "Basic Installation"
 1. run `docker-compose build`
 1. run `docker-compose run web rails db:setup`
+1. run `docker-compose run web yarn install`
 1. run `docker-compose up`
 1. That's it! Navigate to `localhost:3000`
 
@@ -233,6 +237,7 @@ Core team members will move issues along the project board as they progress.
 - [@peterkimfrank](https://dev.to/peter)
 - [@maestromac](https://dev.to/maestromac)
 - [@zhao-andy](https://dev.to/andy)
+- [@aspittel](https://dev.to/aspittel)
 
 ## License
 

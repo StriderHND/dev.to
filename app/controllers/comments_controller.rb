@@ -56,6 +56,7 @@ class CommentsController < ApplicationController
   def create
     authorize Comment
     raise if RateLimitChecker.new(current_user).limit_by_situation("comment_creation")
+
     @comment = Comment.new(permitted_attributes(Comment))
     add_context(commentable_id: @comment.commentable_id,
                 commentable_type: @comment.commentable_type)
@@ -145,6 +146,12 @@ class CommentsController < ApplicationController
     respond_to do |format|
       format.json { render json: { processed_html: processed_html }, status: 200 }
     end
+  end
+
+  def settings
+    @comment = Comment.find(params[:id_code].to_i(26))
+    authorize @comment
+    render :settings
   end
 
   private

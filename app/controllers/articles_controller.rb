@@ -182,11 +182,14 @@ class ArticlesController < ApplicationController
 
   def article_params
     params[:article][:published] = true if params[:submit_button] == "PUBLISH"
-    params.require(:article).permit(policy(Article).permitted_attributes)
+    modified_params = policy(Article).permitted_attributes
+    modified_params << :user_id if org_admin_user_change_privilege
+    params.require(:article).permit(modified_params)
   end
 
   def job_opportunity_params
     return nil unless params[:article][:job_opportunity].present?
+
     params[:article].require(:job_opportunity).permit(
       :remoteness, :location_given, :location_city, :location_postal_code,
       :location_country_code, :location_lat, :location_long
@@ -199,11 +202,18 @@ class ArticlesController < ApplicationController
       redirect_to @article.current_state_path, notice: "Article was successfully created."
     else
       if @article.errors.to_h[:body_markdown] == "has already been taken"
-        @article = Article.find_by_body_markdown(@article.body_markdown)
+        @article = current_user.articles.find_by_body_markdown(@article.body_markdown)
         redirect_to @article.current_state_path
         return
       end
       render :new
     end
+  end
+
+  def org_admin_user_change_privilege
+    params[:article][:user_id] &&
+      current_user.org_admin &&
+      current_user.organization_id == @article.organization_id &&
+      User.find(params[:article][:user_id])&.organization_id == @article.organization_id
   end
 end

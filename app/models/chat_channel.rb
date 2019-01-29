@@ -44,7 +44,7 @@ class ChatChannel < ApplicationRecord
   end
 
   def clear_channel
-    messages.each(&:destroy!)
+    messages.find_each(&:destroy!)
     Pusher.trigger(pusher_channels, "channel-cleared", { chat_channel_id: id }.to_json)
     true
   rescue Pusher::Error => e
@@ -62,6 +62,7 @@ class ChatChannel < ApplicationRecord
 
   def self.create_with_users(users, channel_type = "direct", contrived_name = "New Channel")
     raise "Invalid direct channel" if users.size != 2 && channel_type == "direct"
+
     if channel_type == "direct"
       usernames = users.map(&:username).sort
       contrived_name = "Direct chat between " + usernames.join(" and ")

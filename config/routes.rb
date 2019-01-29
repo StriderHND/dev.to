@@ -31,6 +31,7 @@ Rails.application.routes.draw do
     resources :users do
       member do
         post "banish"
+        post "full_delete"
       end
     end
     resources :events
@@ -49,7 +50,6 @@ Rails.application.routes.draw do
         post "save_status"
       end
     end
-    mount Flipflop::Engine => "/features"
   end
 
   namespace :api, defaults: { format: "json" } do
@@ -95,7 +95,9 @@ Rails.application.routes.draw do
   resources :chat_channels, only: %i[index show create update]
   resources :chat_channel_memberships, only: %i[create update destroy]
   resources :articles, only: %i[update create destroy]
+  resources :article_mutes, only: %i[update]
   resources :comments, only: %i[create update destroy]
+  resources :comment_mutes, only: %i[update]
   resources :users, only: [:update]
   resources :reactions, only: %i[index create]
   resources :feedback_messages, only: %i[index create]
@@ -182,6 +184,8 @@ Rails.application.routes.draw do
   delete "users/remove_association", to: "users#remove_association"
   delete "users/destroy", to: "users#destroy"
   post "organizations/generate_new_secret" => "organizations#generate_new_secret"
+  post "users/api_secrets" => "api_secrets#create"
+  delete "users/api_secrets" => "api_secrets#destroy"
 
   # The priority is based upon order of creation: first created -> highest priority.
   # See how all your routes lay out with "rake routes".
@@ -223,11 +227,12 @@ Rails.application.routes.draw do
   get "/scholarships", to: redirect("/p/scholarships")
   get "/memberships", to: redirect("/membership")
   get "/shop", to: redirect("https://shop.dev.to/")
+  get "/tag-moderation" => "pages#tag_moderation"
 
   post "/fallback_activity_recorder" => "ga_events#create"
 
   scope "p" do
-    pages_actions = %w[rly rlyweb welcome twitter_moniter editor_guide information
+    pages_actions = %w[rly rlyweb welcome twitter_moniter editor_guide publishing_from_rss_guide information
                        markdown_basics scholarships wall_of_patrons membership_form badges]
     pages_actions.each do |action|
       get action, action: action, controller: "pages"
@@ -287,6 +292,7 @@ Rails.application.routes.draw do
   get "/:username/comment/:id_code/edit" => "comments#edit"
   get "/:username/comment/:id_code/delete_confirm" => "comments#delete_confirm"
   get "/:username/comment/:id_code/mod" => "moderations#comment"
+  get "/:username/comment/:id_code/settings", to: "comments#settings"
 
   get "/:username/:slug/:view" => "stories#show",
       constraints: { view: /moderate/ }

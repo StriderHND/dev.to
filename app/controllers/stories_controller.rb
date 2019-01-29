@@ -6,16 +6,15 @@ class StoriesController < ApplicationController
     add_param_context(:username, :tag)
     return handle_user_or_organization_or_podcast_index if params[:username]
     return handle_tag_index if params[:tag]
+
     handle_base_index
   end
 
   def search
     @query = "...searching"
-    @stories = Article.none
-    @featured_story = Article.new
     @article_index = true
     set_surrogate_key_header "articles-page-with-query"
-    render template: "articles/index"
+    render template: "articles/search"
   end
 
   def show
@@ -35,31 +34,24 @@ class StoriesController < ApplicationController
   private
 
   def redirect_to_changed_username_profile
-    if @user = User.find_by_old_username(params[:username].tr("@", "").downcase)
-      redirect_to @user.path
+    potential_username = params[:username].tr("@", "").downcase
+    user_or_org = User.find_by("old_username = ? OR old_old_username = ?", potential_username, potential_username) ||
+      Organization.find_by("old_slug = ? OR old_old_slug = ?", potential_username, potential_username)
+    if user_or_org.present?
+      redirect_to user_or_org.path
       return
+    else
+      not_found
     end
-    if @user = User.find_by_old_old_username(params[:username].tr("@", "").downcase)
-      redirect_to @user.path
-      return
-    end
-    not_found
   end
 
   def handle_possible_redirect
-    if @user = User.find_by_old_username(params[:username].tr("@", "").downcase)
-      if @user.articles.find_by_slug(params[:slug])
-        redirect_to "/#{@user.username}/#{params[:slug]}"
-        return
-      end
-    end
-    if @user = User.find_by_old_old_username(params[:username].tr("@", "").downcase)
-      if @user.articles.find_by_slug(params[:slug])
-        redirect_to "/#{@user.username}/#{params[:slug]}"
-        return
-      end
-    end
-    if @organization = @article.organization
+    potential_username = params[:username].tr("@", "").downcase
+    @user = User.find_by("old_username = ? OR old_old_username = ?", potential_username, potential_username)
+    if @user&.articles&.find_by_slug(params[:slug])
+      redirect_to "/#{@user.username}/#{params[:slug]}"
+      return
+    elsif @organization = @article.organization
       redirect_to "/#{@organization.slug}/#{params[:slug]}"
       return
     end
@@ -97,11 +89,10 @@ class StoriesController < ApplicationController
     @stories = stories_by_timeframe
     @stories = @stories.decorate
 
-    @featured_story = Article.new
     @article_index = true
     set_surrogate_key_header "articles-#{@tag}", @stories.map(&:record_key)
     response.headers["Surrogate-Control"] = "max-age=600, stale-while-revalidate=30, stale-if-error=86400"
-    render template: "articles/index"
+    render template: "articles/tag_index"
   end
 
   def handle_base_index
@@ -110,10 +101,9 @@ class StoriesController < ApplicationController
     num_articles = 25
     @stories = article_finder(num_articles)
     add_param_context(:page, :timeframe)
-
     if ["week", "month", "year", "infinity"].include?(params[:timeframe])
       @stories = @stories.where("published_at > ?", Timeframer.new(params[:timeframe]).datetime).
-        order("positive_reactions_count DESC")
+        order("score DESC")
       @featured_story = @stories.where.not(main_image: nil).first&.decorate || Article.new
     elsif params[:timeframe] == "latest"
       @stories = @stories.order("published_at DESC").
@@ -122,18 +112,18 @@ class StoriesController < ApplicationController
     else
       @default_home_feed = true
       @stories = @stories.
-        where("reactions_count > ? OR featured = ?", 10, true).
+        where("score > ? OR featured = ?", 9, true).
         order("hotness_score DESC")
       if user_signed_in?
-        offset = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6, 7].sample #random offset, weighted more towards zero
+        offset = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6, 7].sample # random offset, weighted more towards zero
         @stories = @stories.offset(offset)
       end
       @featured_story = @stories.where.not(main_image: nil).first&.decorate || Article.new
       if user_signed_in?
-        @new_stories = Article.where("published_at > ? AND score > ?", 4.hours.ago, -30).
+        @new_stories = Article.where("published_at > ? AND score > ?", rand(2..6).hours.ago, -30).
           where(published: true).
           includes(:user).
-          limit(45).
+          limit(rand(15..60)).
           order("published_at DESC").
           limited_column_select.
           decorate
@@ -142,20 +132,18 @@ class StoriesController < ApplicationController
     @stories = @stories.decorate
     assign_podcasts
     @article_index = true
-    @sidebar_ad = DisplayAd.where(approved: true, published: true, placement_area: "sidebar").first
-    set_surrogate_key_header "articles", @stories.map(&:record_key)
+    set_surrogate_key_header "main_app_home_page"
     response.headers["Surrogate-Control"] = "max-age=600, stale-while-revalidate=30, stale-if-error=86400"
     render template: "articles/index"
   end
 
   def handle_podcast_index
-    @featured_story = Article.new
     @podcast_index = true
     @article_index = true
     @list_of = "podcast-episodes"
     @podcast_episodes = @podcast.podcast_episodes.order("published_at DESC").limit(30)
     set_surrogate_key_header "podcast_episodes", (@podcast_episodes.map { |e| e["record_key"] })
-    render template: "articles/index"
+    render template: "podcast_episodes/index"
   end
 
   def handle_organization_index
@@ -165,11 +153,10 @@ class StoriesController < ApplicationController
       limited_column_select.
       includes(:user).
       order("published_at DESC").page(@page).per(8))
-    @featured_story = Article.new
     @article_index = true
     @organization_article_index = true
     set_surrogate_key_header "articles-org-#{@organization.id}", @stories.map(&:record_key)
-    render template: "articles/index"
+    render template: "organizations/show"
   end
 
   def handle_user_index
@@ -183,13 +170,13 @@ class StoriesController < ApplicationController
       articles.where(published: true).
       limited_column_select.
       order("published_at DESC").page(@page).per(user_signed_in? ? 2 : 5))
-    @featured_story = Article.new
     @article_index = true
     @list_of = "articles"
     redirect_if_view_param
     return if performed?
+
     set_surrogate_key_header "articles-user-#{@user.id}", @stories.map(&:record_key)
-    render template: "articles/index"
+    render template: "users/show"
   end
 
   def handle_podcast_show
@@ -218,14 +205,16 @@ class StoriesController < ApplicationController
 
   def handle_article_show
     @article_show = true
+    @variant_number = params[:variant_version] || rand(2)
     @comment = Comment.new
     assign_user_and_org
-    @comments_to_show_count = @article.cached_tag_list_array.include?("discuss") ? 65 : 35
+    @comments_to_show_count = @article.cached_tag_list_array.include?("discuss") ? 50 : 30
     assign_second_and_third_user
     not_found if permission_denied?
     set_surrogate_key_header @article.record_key
     redirect_if_show_view_param
     return if performed?
+
     render template: "articles/show"
   end
 
@@ -249,7 +238,7 @@ class StoriesController < ApplicationController
 
   def assign_user_comments
     comment_count = params[:view] == "comments" ? 250 : 8
-    @comments = if @user.comments_count > 0
+    @comments = if @user.comments_count.positive?
                   @user.comments.where(deleted: false).
                     order("created_at DESC").includes(:commentable).limit(comment_count)
                 else
